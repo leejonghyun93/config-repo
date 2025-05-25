@@ -1,12 +1,19 @@
-spring:
-  datasource:
-    url: jdbc:mariadb://localhost:3306/board_db
-    username: board_user
-    password: board_pass
-
 server:
-  port: 8081
+  port: 0
 
-myapp:
-  feature:
-    enabled: true
+spring:
+  application:
+    name: board-service
+
+  datasource:
+    url: jdbc:mariadb://localhost:3306/kosa_db
+    username: root
+    password: admin
+    driver-class-name: org.mariadb.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: org.kosa.boardservice.dto
+
+jwt:
+  secret: eUpoYkdjaU9pSklVekkxTmlKOS5leUp6ZFdJaU9pSmhjMlJoYzJSaGMyUWlMQ0p5YjJ4bElqb2lVazlNUlY5VlUwVlNJaXdpYVdGMElqb3hOelE0TVRVME9EZ3dMQ0psZUhBaU9qRTNORGd5TkRFeU9EQjkuZ0RGOHJtb0dFYjdfczdLdlRBYjNkQmRDbGZLcmZTOGxhaVFpTnY5ZHRzQQ==
