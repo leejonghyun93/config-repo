@@ -1,17 +1,12 @@
-server:
-  port: 8888
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
 
 spring:
-  application:
-    name: config-service
-  profiles:
-    active: native  # 또는 git 사용 시 주석 처리 가능
-
   cloud:
     config:
-      server:
-        git:
-          uri: https://github.com/leejonghyun93/config-repo  # Git URI
-          # native 사용 시 아래 주석 해제해서 사용 가능
-          # native:
-          #   search-locations: file://${user.home}/native-file-repo
+      fail-fast: true
+
+jwt:
+  secret-key: "verySecretKeyThatIsAtLeast32BytesLong1234"

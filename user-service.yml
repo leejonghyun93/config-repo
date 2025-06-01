@@ -1,12 +1,30 @@
+server:
+  port: 8081
+
 spring:
   datasource:
-    url: jdbc:oracle:thin:@localhost:1521:xe
-    username: user_user
-    password: user_pass
+    url: jdbc:oracle:thin:@localhost:1521:XE
+    username: SYSTEM
+    password: 1004
+    driver-class-name: oracle.jdbc.OracleDriver
 
-server:
-  port: 8082
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.OracleDialect
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.OracleDialect
 
-myapp:
-  feature:
-    enabled: false
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+jwt:
+  secret-key: "verySecretKeyThatIsAtLeast32BytesLong1234"
+
+user-service-detail-url: http://user-service/api/users
