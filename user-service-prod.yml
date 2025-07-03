@@ -1,0 +1,57 @@
+spring:
+  # Redis 설정 추가
+  redis:
+    host: ${REDIS_HOST:redis-cluster}
+    port: ${REDIS_PORT:6379}
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 2
+        max-wait: 1000ms
+
+  # Kafka 설정 (기존 user-service)
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-cluster:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      enable-idempotence: true
+      batch-size: 16384
+      linger-ms: 5
+    consumer:
+      group-id: user-service-group-prod
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      session-timeout: 30000
+      heartbeat-interval: 10000
+      properties:
+        spring.json.trusted.packages: "org.kosa.userservice.dto"
+
+# MyBatis 설정 추가 (board 기능용)
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  type-aliases-package: org.kosa.userservice.dto.board # 패키지명 변경
+  configuration:
+    map-underscore-to-camel-case: true
+
+# Kafka 토픽 설정 (기존 user-service 설정)
+kafka:
+  topic:
+    user-withdrawal: ${KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic-prod}
+
+# Auth Service 설정 (기존 user-service에서 사용)
+auth-service:
+  url: ${AUTH_SERVICE_URL:http://auth-service}
+
+# 로깅 설정 (user + board 통합)
+logging:
+  level:
+    org.kosa.userservice: INFO
+    org.springframework.kafka: WARN
+    org.apache.kafka: ERROR
+    org.mybatis: WARN # 🔥 MyBatis 로깅 추가

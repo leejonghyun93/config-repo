@@ -1,0 +1,89 @@
+# 통합된 Order Service 개발환경 설정
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: order-service-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# Kafka 토픽 설정
+kafka:
+  topic:
+    user-withdrawal: user-withdrawal-topic
+
+# Feign Client 설정 (Payment 기능)
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+  circuitbreaker:
+    enabled: true
+
+# 🔥 아임포트 설정 (Payment 기능)
+iamport:
+  api-key: ${IAMPORT_API_KEY:your_api_key}
+  api-secret: ${IAMPORT_API_SECRET:your_api_secret}
+
+# 🔥 PG 테스트 설정 (Payment 기능)
+payment:
+  test:
+    enabled: true
+    mode: development
+
+  providers:
+    kakaopay:
+      enabled: true
+      active: true
+      name: "카카오페이"
+      pg-code: "kakaopay"
+      test-mode: false
+
+    inicis:
+      enabled: true
+      active: false
+      name: "이니시스"
+      pg-code: "html5_inicis"
+      test-mode: true
+      test-merchant-id: "INIpayTest"
+
+  methods:
+    card:
+      enabled: true
+      name: "신용카드"
+      test-cards:
+        - number: "4000-0000-0000-0001"
+          name: "신한카드 테스트"
+
+# 외부 서비스 URL 설정
+user-service:
+  url: http://user-service
+
+# 🔥 Product Service URL (Cart 기능에서 사용)
+product-service:
+  url: http://product-service
+
+# 상세 API URL 설정
+user-service-detail-url: http://user-service/api/users
+
+# 로깅 설정
+logging:
+  level:
+    org.springframework.kafka: DEBUG
+    org.kosa.orderservice.service: DEBUG
+    org.kosa.orderservice.cart: DEBUG
+    org.kosa.orderservice.payment: DEBUG
+    com.siot.IamportRestClient: DEBUG
+    org.springframework.cloud.openfeign: DEBUG
+jwt:
+  secret-key: "verySecretKeyThatIsAtLeast32BytesLong1234"

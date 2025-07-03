@@ -1,0 +1,46 @@
+eureka:
+  client:
+    register-with-eureka: true # 운영환경: 다중 노드 구성
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_CLUSTER_URLS:http://eureka-1:8761/eureka,http://eureka-2:8761/eureka}
+
+  server:
+    enable-self-preservation: true # 운영환경: 네트워크 장애 대응
+    eviction-interval-timer-in-ms: 60000
+    response-cache-update-interval-ms: 30000
+    renewal-percent-threshold: 0.85
+
+  instance:
+    hostname: ${EUREKA_HOSTNAME:eureka-server}
+    prefer-ip-address: ${PREFER_IP_ADDRESS:false}
+    instance-id: ${spring.application.name}:${server.port}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ["health", "info", "prometheus"] # 운영환경: 최소 노출
+  endpoint:
+    health:
+      show-details: when-authorized
+    prometheus:
+      enabled: true
+  security:
+    enabled: ${MANAGEMENT_SECURITY_ENABLED:true}
+
+logging:
+  level:
+    org.springframework.cloud.netflix.eureka: INFO
+    com.netflix.eureka: WARN
+    root: WARN
+
+# 보안 설정 (운영환경)
+security:
+  basic:
+    enabled: ${EUREKA_SECURITY_ENABLED:true}
+  user:
+    name: ${EUREKA_USERNAME:eureka}
+    password: ${EUREKA_PASSWORD}

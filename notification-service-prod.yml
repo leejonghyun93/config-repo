@@ -1,0 +1,61 @@
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          timeout: 5000
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-cluster:9092}
+    consumer:
+      group-id: notification-group-prod
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      retries: 3
+      acks: all
+
+notification:
+  email:
+    enabled: ${NOTIFICATION_EMAIL_ENABLED:true}
+    from-email: ${NOTIFICATION_FROM_EMAIL:noreply@shopmall.com}
+    from-name: "쇼핑몰 알림"
+    retry-count: 3
+    retry-delay: 5000
+  websocket:
+    enabled: true
+    max-connections: 1000
+    heartbeat-interval: 30000
+  batch:
+    enabled: true
+    reminder-job-cron: "0 */5 * * * *" # 5분마다
+    thread-pool-size: 5
+    batch-size: 100
+    max-retry-count: 3
+
+external-services:
+  user-service-detail-url: ${USER_SERVICE_URL:http://user-service/api/users}
+  broadcast-service-url: ${BROADCAST_SERVICE_URL:http://broadcast-service/api/broadcasts}
+  frontend-base-url: ${FRONTEND_BASE_URL:https://shopmall.com}
+  unsubscribe-url: ${UNSUBSCRIBE_URL:https://shopmall.com/unsubscribe}
+
+logging:
+  level:
+    org.kosa.notificationservice: INFO
+    org.springframework.mail: INFO
+    org.springframework.kafka: WARN

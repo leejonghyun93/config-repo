@@ -1,0 +1,439 @@
+spring:
+  cloud:
+    config:
+      enabled: true
+    gateway:
+      globalcors:
+        cors-configurations:
+          "[/**]":
+            allowedOrigins:
+              - ${FRONTEND_URL:https://shopmall.com}
+              - ${ADMIN_URL:https://admin.shopmall.com}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - HEAD
+              - PATCH
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      default-filters:
+        - name: DedupeResponseHeader
+          args:
+            name: Access-Control-Allow-Origin Access-Control-Allow-Credentials
+            strategy: RETAIN_UNIQUE
+
+      routes:
+        # ===========================================
+        # 🔥 PRODUCT CATALOG SERVICE 라우팅 (통합 서비스)
+        # ===========================================
+
+        # 1. 상품 API 라우팅
+        # 상품 상세 조회 (특정 ID) - 우선순위 높음
+        - id: product-detail-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/{productId}
+            - Method=GET
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /api/products/(?<productId>.*)
+                replacement: /api/products/${productId}
+
+        # 상품 필터링 조회
+        - id: product-filter-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/filter
+            - Method=GET
+
+        # 카테고리별 상품 조회
+        - id: product-category-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/category/{categoryId}
+            - Method=GET
+
+        # 연관 상품 조회
+        - id: product-related-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/{productId}/related
+            - Method=GET
+
+        # 추천 상품 조회
+        - id: product-recommended-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/recommended
+            - Method=GET
+
+        # 호스트별 상품 조회
+        - id: product-host-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/host/{hostId}
+            - Method=GET
+
+        # 상품 통계 조회
+        - id: product-stats-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/stats/**
+            - Method=GET
+
+        # 게스트 장바구니 상세 조회
+        - id: product-guest-cart-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/guest-cart-details
+            - Method=POST
+
+        # 이미지 포함 상품 조회 API들
+        - id: product-with-images-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/{productId}/with-images
+            - Method=GET
+
+        - id: product-category-with-images-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/category/{categoryId}/with-images
+            - Method=GET
+
+        - id: product-related-with-images-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/{productId}/related/with-images
+            - Method=GET
+
+        # 전체 상품 조회 (마지막에 배치)
+        - id: product-list-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products
+            - Method=GET
+
+        # 상품 관리 API (관리자용)
+        - id: product-management-protected
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/products/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+
+        # 2. 카테고리 API 라우팅
+        # 메인 카테고리 조회
+        - id: category-main-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/main
+            - Method=GET
+
+        # 계층형 카테고리 조회
+        - id: category-hierarchy-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/hierarchy
+            - Method=GET
+
+        # 특정 카테고리 하위 조회
+        - id: category-sub-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/{categoryId}/sub
+            - Method=GET
+
+        # 카테고리 하위 ID 조회
+        - id: category-children-ids-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/{categoryId}/children-ids
+            - Method=GET
+
+        # 카테고리 존재 여부 확인
+        - id: category-exists-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/{categoryId}/exists
+            - Method=GET
+
+        # 특정 카테고리 상세 조회
+        - id: category-detail-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/{categoryId}
+            - Method=GET
+
+        # 카테고리 관리 API (관리자용)
+        - id: category-management-protected
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/categories/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+
+        # 3. 이미지 API 라우팅
+        # 정적 이미지 파일 서빙
+        - id: image-static-files
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/images/**
+            - Method=GET
+
+        # 상품 이미지 서빙
+        - id: image-products-files
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/{fileName}
+            - Method=GET
+
+        # 썸네일 이미지
+        - id: image-thumbnail-files
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/{fileName}/thumb
+            - Method=GET
+
+        # 상품별 이미지 조회 API
+        - id: image-product-images-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/{productId}
+            - Method=GET
+
+        # 메인 이미지 조회
+        - id: image-main-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/{productId}/main
+            - Method=GET
+
+        # 이미지 존재 여부 확인
+        - id: image-exists-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/{productId}/exists
+            - Method=GET
+
+        # 메인 이미지 존재 여부 확인
+        - id: image-main-exists-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/{productId}/main/exists
+            - Method=GET
+
+        # 복수 상품 메인 이미지 조회
+        - id: image-main-bulk-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/main
+            - Method=POST
+
+        # 복수 상품 전체 이미지 조회
+        - id: image-all-bulk-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/products/all
+            - Method=POST
+
+        # 개별 이미지 조회 (ID별)
+        - id: image-by-id-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/{productId}
+            - Method=GET
+
+        # 개별 메인 이미지 조회 (ID별)
+        - id: image-main-by-id-public
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/{productId}/main
+            - Method=GET
+
+        # 이미지 관리 API (관리자용)
+        - id: image-upload-protected
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+
+        - id: image-delete-protected
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/images/{imageId}
+            - Method=DELETE
+          filters:
+            - name: JwtAuthorization
+
+        # 4. 캐시 관리 API (관리자용)
+        - id: cache-management-protected
+          uri: lb://product-catalog-service
+          predicates:
+            - Path=/api/cache/**
+          filters:
+            - name: JwtAuthorization
+
+        # ===========================================
+        # 🔥 통합된 ORDER SERVICE 라우팅 (Order + Cart + Payment)
+        # ===========================================
+
+        # AUTH SERVICE
+        - id: auth-service-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+
+        # ===========================================
+        # 🔥 USER SERVICE 라우팅 (Board + QnA 통합됨)
+        # ===========================================
+
+        # USER SERVICE 공개 API
+        - id: user-service-register-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/register,/api/users/checkUserId,/api/users/findId
+            - Method=GET,POST
+
+        # USER SERVICE 보호된 API
+        - id: user-service-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - name: JwtAuthorization
+
+        # ===========================================
+        # 🔥 BOARD/QNA SERVICE - user-service로 통합됨
+        # ===========================================
+
+        # BOARD/QNA 공개 API (조회용) - user-service로 변경
+        - id: board-qna-service-public
+          uri: lb://user-service # ✅ board-service → user-service로 변경
+          predicates:
+            - Path=/api/board/**,/api/qna/**
+            - Method=GET
+
+        # BOARD/QNA 보호된 API (작성/수정/삭제용) - user-service로 변경
+        - id: board-qna-service-protected
+          uri: lb://user-service # ✅ board-service → user-service로 변경
+          predicates:
+            - Path=/api/board/**,/api/qna/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+
+        # ===========================================
+        # 🔥 기타 서비스 라우팅
+        # ===========================================
+
+        # 🔥 CART SERVICE (order-service로 통합됨)
+        - id: cart-service-integrated
+          uri: lb://order-service
+          predicates:
+            - Path=/api/cart/**
+          filters:
+            - name: JwtAuthorization
+
+        # 🔥 ORDER SERVICE (기존 유지)
+        - id: order-service-protected
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - name: JwtAuthorization
+
+        # 🔥 PAYMENT SERVICE (order-service로 통합됨)
+        - id: payment-service-integrated
+          uri: lb://order-service
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - name: JwtAuthorization
+
+        # NOTIFICATION SERVICE
+        - id: notification-service-protected
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - name: JwtAuthorization
+
+        # LIVE STREAMING SERVICE
+        - id: live-streaming-service-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/streaming/**
+            - Method=GET
+
+        - id: live-streaming-service-protected
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/streaming/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+
+        # LIVE CHAT SERVICE
+        - id: live-chat-service-protected
+          uri: lb://live-chat-service
+          predicates:
+            - Path=/api/chat/**
+          filters:
+            - name: JwtAuthorization
+
+# Eureka 설정
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://eureka-server:8761/eureka/}
+  instance:
+    hostname: ${EUREKA_HOSTNAME:apigateway-service}
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${server.port}}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+# 로깅 설정
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: DEBUG # ✅ 라우팅 디버깅 추가
+    org.kosa.apigatewayservice: INFO
+    reactor.netty.http.client: WARN
+    org.springframework.cloud.netflix.eureka: WARN
+
+# 서버 설정 (운영환경)
+server:
+  port: ${SERVER_PORT:8080}
+
+# 관리 엔드포인트 (운영환경)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway # ✅ gateway 엔드포인트 추가
+  endpoint:
+    health:
+      show-details: when_authorized
+    gateway:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# JWT 설정 (운영환경용)
+jwt:
+  secret: ${JWT_SECRET:verySecretKeyThatIsAtLeast32BytesLong1234}
+  expiration: ${JWT_EXPIRATION:86400000}

@@ -1,0 +1,40 @@
+spring:
+  # 개발환경용 이메일 설정 (기존 환경변수 유지)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  cloud:
+    discovery:
+      enabled: true
+
+user-service:
+  url: http://localhost:8103 # 기존 설정 유지
+
+logging:
+  level:
+    org.kosa.authservice: DEBUG
+
+jwt:
+  secret: verySecretKeyThatIsAtLeast32BytesLong1234
+  expiration: 86400000

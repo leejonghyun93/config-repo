@@ -1,0 +1,54 @@
+spring:
+  # 기존 Gmail 설정 유지
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-group-local
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      retries: 0
+
+# 기존 notification 설정 유지
+notification:
+  email:
+    enabled: true
+    from-email: "fhohffodf93@gmail.com"
+    from-name: "Local Dev Notification"
+    retry-count: 1
+    retry-delay: 2000
+  websocket:
+    enabled: true
+  batch:
+    enabled: true
+    reminder-job-cron: "0 */1 * * * *"
+
+external-services:
+  user-service-detail-url: "http://localhost:8081/api/users"
+  broadcast-service-url: "http://localhost:8082/api/broadcasts"
+  frontend-base-url: "http://localhost:3000"
+  unsubscribe-url: "http://localhost:3000/unsubscribe"
+
+logging:
+  level:
+    org.kosa.notificationservice: DEBUG
+    org.springframework.mail: DEBUG
+    org.springframework.kafka: WARN

@@ -1,0 +1,58 @@
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+  circuitbreaker:
+    enabled: true
+
+# 운영환경 아임포트 설정
+iamport:
+  api-key: ${IAMPORT_API_KEY}
+  api-secret: ${IAMPORT_API_SECRET}
+
+# 운영환경 PG 설정
+payment:
+  test:
+    enabled: false
+    mode: production
+
+  providers:
+    kakaopay:
+      enabled: true
+      active: true
+      name: "카카오페이"
+      pg-code: "kakaopay"
+      test-mode: false
+      merchant-id: ${KAKAOPAY_MERCHANT_ID}
+
+    inicis:
+      enabled: ${INICIS_ENABLED:false}
+      active: false
+      name: "이니시스"
+      pg-code: "html5_inicis"
+      test-mode: false
+      merchant-id: ${INICIS_MERCHANT_ID}
+
+  methods:
+    card:
+      enabled: true
+      name: "신용카드"
+    trans:
+      enabled: true
+      name: "실시간계좌이체"
+    vbank:
+      enabled: true
+      name: "가상계좌"
+    phone:
+      enabled: ${PHONE_PAYMENT_ENABLED:false}
+      name: "휴대폰소액결제"
+
+user-service-detail-url: ${USER_SERVICE_DETAIL_URL:http://user-service/api/users}
+
+logging:
+  level:
+    org.kosa.paymentservice: INFO
+    com.siot.IamportRestClient: WARN

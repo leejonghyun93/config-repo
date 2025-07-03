@@ -1,0 +1,53 @@
+spring:
+  # Redis 설정 추가
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      enable-idempotence: true
+    consumer:
+      group-id: user-service-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: "org.kosa.userservice.dto"
+
+# MyBatis 설정 추가 (board 기능용)
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  type-aliases-package: org.kosa.userservice.dto.board
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# Kafka 토픽 설정
+kafka:
+  topic:
+    user-withdrawal: user-withdrawal-topic
+
+# Auth Service 설정 (✅ 하나로 통일)
+auth-service:
+  url: ${AUTH_SERVICE_URL:http://localhost:8082} # ✅ 올바른 포트로 통일
+
+# 로깅 설정
+logging:
+  level:
+    org.kosa.userservice: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+    org.mybatis: DEBUG
