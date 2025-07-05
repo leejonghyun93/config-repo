@@ -1,16 +1,16 @@
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_SERVER_URL:http://eureka-server:8761/eureka}
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-server:8761/eureka}
     register-with-eureka: true
     fetch-registry: true
 
 spring:
   # 운영환경 데이터베이스 설정
   datasource:
-    url: ${DB_URL:jdbc:mariadb://mariadb-server:3306/shopmall_prod}
-    username: ${DB_USERNAME:prod_user}
-    password: ${DB_PASSWORD}
+    url: ${PROD_DB_URL}
+    username: ${PROD_DB_USERNAME}
+    password: ${PROD_DB_PASSWORD}
     driver-class-name: org.mariadb.jdbc.Driver
     hikari:
       maximum-pool-size: 20
@@ -28,29 +28,29 @@ spring:
 
   # Redis 운영환경
   redis:
-    host: ${REDIS_HOST:redis-server}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD}
+    host: ${PROD_REDIS_HOST}
+    port: ${PROD_REDIS_PORT:6379}
+    password: ${PROD_REDIS_PASSWORD}
 
   # RabbitMQ 운영환경
   rabbitmq:
-    host: ${RABBITMQ_HOST:rabbitmq-server}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:admin}
-    password: ${RABBITMQ_PASSWORD}
+    host: ${PROD_RABBITMQ_HOST}
+    port: ${PROD_RABBITMQ_PORT:5672}
+    username: ${PROD_RABBITMQ_USERNAME}
+    password: ${PROD_RABBITMQ_PASSWORD}
 
   # Kafka 운영환경
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-cluster:9092}
+    bootstrap-servers: ${PROD_KAFKA_SERVERS}
 
 jwt:
-  secret-key: ${JWT_SECRET_KEY}
+  secret-key: ${PROD_JWT_SECRET_KEY}
 
 management:
   endpoints:
     web:
       exposure:
-        include: ["health", "info"] # 운영환경에서는 최소한의 엔드포인트만
+        include: ["health", "info"]
   endpoint:
     health:
       show-details: when-authorized

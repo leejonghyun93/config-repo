@@ -1,8 +1,34 @@
 spring:
-  # Redis 설정 추가
+  application:
+    name: user-service
+
+server:
+  port: 8103
+
+  # 운영환경 데이터베이스는 공통 설정에서 가져옴
+  datasource:
+    url: ${PROD_DB_URL}
+    username: ${PROD_DB_USERNAME}
+    password: ${PROD_DB_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.MariaDBDialect
+
   redis:
-    host: ${REDIS_HOST:redis-cluster}
-    port: ${REDIS_PORT:6379}
+    host: ${PROD_REDIS_HOST}
+    port: ${PROD_REDIS_PORT:6379}
+    password: ${PROD_REDIS_PASSWORD}
     timeout: 3000ms
     lettuce:
       pool:
@@ -11,9 +37,8 @@ spring:
         min-idle: 2
         max-wait: 1000ms
 
-  # Kafka 설정 (기존 user-service)
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-cluster:9092}
+    bootstrap-servers: ${PROD_KAFKA_SERVERS}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -32,26 +57,25 @@ spring:
       properties:
         spring.json.trusted.packages: "org.kosa.userservice.dto"
 
-# MyBatis 설정 추가 (board 기능용)
+# MyBatis 설정
 mybatis:
   mapper-locations: classpath*:mapper/*.xml
-  type-aliases-package: org.kosa.userservice.dto.board # 패키지명 변경
+  type-aliases-package: org.kosa.userservice.dto.board
   configuration:
     map-underscore-to-camel-case: true
 
-# Kafka 토픽 설정 (기존 user-service 설정)
+# Kafka 토픽 설정
 kafka:
   topic:
-    user-withdrawal: ${KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic-prod}
+    user-withdrawal: ${PROD_KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic-prod}
 
-# Auth Service 설정 (기존 user-service에서 사용)
+# Auth Service 설정
 auth-service:
-  url: ${AUTH_SERVICE_URL:http://auth-service}
+  url: ${PROD_AUTH_SERVICE_URL:http://auth-service}
 
-# 로깅 설정 (user + board 통합)
 logging:
   level:
     org.kosa.userservice: INFO
     org.springframework.kafka: WARN
     org.apache.kafka: ERROR
-    org.mybatis: WARN # 🔥 MyBatis 로깅 추가
+    org.mybatis: WARN

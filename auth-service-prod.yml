@@ -2,8 +2,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${PROD_MAIL_USERNAME}
+    password: ${PROD_MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -17,9 +17,9 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:redis-server}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}
+      host: ${PROD_REDIS_HOST}
+      port: ${PROD_REDIS_PORT:6379}
+      password: ${PROD_REDIS_PASSWORD}
       timeout: 2000ms
       lettuce:
         pool:
@@ -32,7 +32,7 @@ spring:
       enabled: true
 
 user-service:
-  url: ${USER_SERVICE_URL:http://user-service}
+  url: ${PROD_USER_SERVICE_URL:http://user-service}
 
 logging:
   level:

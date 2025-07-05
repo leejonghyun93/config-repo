@@ -1,8 +1,29 @@
 spring:
-  # Redis 설정 추가
+  application:
+    name: user-service
+
+server:
+  port: 8103
+
+  datasource:
+    url: ${DEV_DB_URL:jdbc:mariadb://localhost:3306/shopmalls?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul}
+    username: ${DEV_DB_USERNAME:kosa}
+    password: ${DEV_DB_PASSWORD:1004}
+    driver-class-name: org.mariadb.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MariaDBDialect
+
   redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
+    host: ${DEV_REDIS_HOST:localhost}
+    port: ${DEV_REDIS_PORT:6379}
+    password: ${DEV_REDIS_PASSWORD:}
     timeout: 2000ms
     lettuce:
       pool:
@@ -12,7 +33,7 @@ spring:
         max-wait: -1ms
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${DEV_KAFKA_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -27,7 +48,7 @@ spring:
       properties:
         spring.json.trusted.packages: "org.kosa.userservice.dto"
 
-# MyBatis 설정 추가 (board 기능용)
+# MyBatis 설정
 mybatis:
   mapper-locations: classpath*:mapper/*.xml
   type-aliases-package: org.kosa.userservice.dto.board
@@ -38,13 +59,12 @@ mybatis:
 # Kafka 토픽 설정
 kafka:
   topic:
-    user-withdrawal: user-withdrawal-topic
+    user-withdrawal: ${DEV_KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic}
 
-# Auth Service 설정 (✅ 하나로 통일)
+# Auth Service 설정
 auth-service:
-  url: ${AUTH_SERVICE_URL:http://localhost:8082} # ✅ 올바른 포트로 통일
+  url: ${DEV_AUTH_SERVICE_URL:http://localhost:8082}
 
-# 로깅 설정
 logging:
   level:
     org.kosa.userservice: DEBUG

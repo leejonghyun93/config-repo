@@ -4,35 +4,77 @@ eureka:
     fetch-registry: false
     service-url:
       defaultZone: http://localhost:8761/eureka
-
   server:
     enable-self-preservation: false # 개발환경: 빠른 인스턴스 제거
     eviction-interval-timer-in-ms: 3000
     response-cache-update-interval-ms: 3000
-
+    # 추가 최적화: 불필요한 기능 비활성화
+    renewal-percent-threshold: 0.85
+    renewal-threshold-update-interval-ms: 15000
   instance:
     hostname: localhost
     prefer-ip-address: true
+    # 메모리 절약을 위한 리스 시간 단축
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
+# 경량화된 actuator 설정
 management:
   endpoints:
     web:
       exposure:
-        include:
-          ["refresh", "busrefresh", "prometheus", "health", "info", "env"]
+        # 필수 엔드포인트만 노출 (refresh, busrefresh, env, info 제거)
+        include: ["prometheus", "health"]
+      base-path: /actuator
   endpoint:
     prometheus:
       enabled: true
     health:
-      show-details: always
-    metrics:
-      export:
-        prometheus:
-          enabled: true
-      tags:
-        application: ${spring.application.name}
+      show-details: when-authorized # always에서 변경 (보안 + 성능)
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+    # 불필요한 메트릭 비활성화로 메모리 절약
+    enable:
+      jvm: true
+      system: true
+      web: true
+      # 유레카 서버에서 불필요한 메트릭들 비활성화
+      tomcat: false
+      hikaricp: false
+      jdbc: false
+      cache: false
+      rabbitmq: false
+      kafka: false
 
+# 로그 레벨 최적화 (운영환경에서는 INFO 이상 권장)
 logging:
   level:
-    org.springframework.cloud.netflix.eureka: DEBUG
-    com.netflix.eureka: DEBUG
+    # 개발환경에서만 DEBUG, 운영환경에서는 INFO로 변경
+    org.springframework.cloud.netflix.eureka: WARN
+    com.netflix.eureka: WARN
+    com.netflix.discovery: WARN
+    # 전체 로그 레벨 조정
+    org.springframework.web: WARN
+    org.springframework.boot.actuate: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# 서버 최적화
+server:
+  port: 8761
+  # 톰캣 최적화
+  tomcat:
+    threads:
+      max: 50 # 기본값보다 낮게 설정
+      min-spare: 5
+    max-connections: 200
+    accept-count: 10
+  # 압축 활성화
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024

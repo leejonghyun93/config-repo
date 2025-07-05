@@ -1,0 +1,130 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${PROD_DB_URL}
+    username: ${PROD_DB_USERNAME}
+    password: ${PROD_DB_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+
+  redis:
+    host: ${PROD_REDIS_HOST}
+    port: ${PROD_REDIS_PORT:6379}
+    password: ${PROD_REDIS_PASSWORD}
+    timeout: 2000ms
+    jedis:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+        max-wait: 2000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+      cache-null-values: false
+
+  kafka:
+    bootstrap-servers: ${PROD_KAFKA_SERVERS}
+    consumer:
+      group-id: commerce-service-group-prod
+      properties:
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
+    producer:
+      retries: 3
+      acks: all
+
+server:
+  port: ${SERVER_PORT:8080}
+
+kafka:
+  topic:
+    user-withdrawal: ${PROD_KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic-prod}
+
+# 아임포트 운영환경 설정
+iamport:
+  api-key: ${PROD_IAMPORT_API_KEY}
+  api-secret: ${PROD_IAMPORT_API_SECRET}
+
+payment:
+  test:
+    enabled: false
+    mode: production
+  providers:
+    kakaopay:
+      enabled: true
+      active: true
+      name: "카카오페이"
+      pg-code: "kakaopay"
+      test-mode: false
+      merchant-id: ${PROD_KAKAOPAY_MERCHANT_ID}
+    inicis:
+      enabled: ${PROD_INICIS_ENABLED:false}
+      active: false
+      name: "이니시스"
+      pg-code: "html5_inicis"
+      test-mode: false
+      merchant-id: ${PROD_INICIS_MERCHANT_ID}
+  methods:
+    card:
+      enabled: true
+      name: "신용카드"
+    trans:
+      enabled: true
+      name: "실시간계좌이체"
+    vbank:
+      enabled: true
+      name: "가상계좌"
+    phone:
+      enabled: ${PROD_PHONE_PAYMENT_ENABLED:false}
+      name: "휴대폰소액결제"
+
+image:
+  upload:
+    path: ${PROD_IMAGE_UPLOAD_PATH:/app/uploads/products/}
+    max-file-size: 10MB
+    max-request-size: 10MB
+  base-url: ${PROD_IMAGE_BASE_URL:https://cdn.shopmall.com/api/images/products/}
+
+cache:
+  product:
+    detail:
+      ttl: 3600
+    list:
+      ttl: 600
+    category:
+      ttl: 1800
+    related:
+      ttl: 1200
+  category:
+    main:
+      ttl: 7200
+    children:
+      ttl: 1800
+
+user-service:
+  url: ${PROD_USER_SERVICE_URL:http://user-service}
+product-service:
+  url: ${PROD_PRODUCT_SERVICE_URL:http://product-service}
+user-service-detail-url: ${PROD_USER_SERVICE_DETAIL_URL:http://user-service/api/users}
+
+logging:
+  level:
+    org.kosa.commerceservice: INFO
+    org.springframework.kafka: WARN
+    org.springframework.cache: WARN
+    com.siot.IamportRestClient: WARN
+    org.springframework.cloud.openfeign: WARN
+    redis.clients.jedis: WARN
