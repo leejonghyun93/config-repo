@@ -1,10 +1,9 @@
-spring:
-  # 기존 Gmail 설정 유지
+pring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${DEV_MAIL_USERNAME}
+    password: ${DEV_MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -14,7 +13,7 @@ spring:
             required: true
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${DEV_KAFKA_SERVERS:localhost:9092}
     consumer:
       group-id: notification-group-local
       auto-offset-reset: latest
@@ -27,12 +26,11 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       retries: 0
 
-# 기존 notification 설정 유지
 notification:
   email:
     enabled: true
-    from-email: "fhohffodf93@gmail.com"
-    from-name: "Local Dev Notification"
+    from-email: ${DEV_NOTIFICATION_FROM_EMAIL:noreply@localhost.com}
+    from-name: ${DEV_NOTIFICATION_FROM_NAME:Local Dev Notification}
     retry-count: 1
     retry-delay: 2000
   websocket:
@@ -42,10 +40,10 @@ notification:
     reminder-job-cron: "0 */1 * * * *"
 
 external-services:
-  user-service-detail-url: "http://localhost:8081/api/users"
-  broadcast-service-url: "http://localhost:8082/api/broadcasts"
-  frontend-base-url: "http://localhost:3000"
-  unsubscribe-url: "http://localhost:3000/unsubscribe"
+  user-service-detail-url: ${DEV_USER_SERVICE_DETAIL_URL:http://localhost:8081/api/users}
+  broadcast-service-url: ${DEV_BROADCAST_SERVICE_URL:http://localhost:8082/api/broadcasts}
+  frontend-base-url: ${DEV_FRONTEND_BASE_URL:http://localhost:3000}
+  unsubscribe-url: ${DEV_UNSUBSCRIBE_URL:http://localhost:3000/unsubscribe}
 
 logging:
   level:

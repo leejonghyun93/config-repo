@@ -2,8 +2,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${PROD_MAIL_USERNAME}
+    password: ${PROD_MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -14,7 +14,7 @@ spring:
           timeout: 5000
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-cluster:9092}
+    bootstrap-servers: ${PROD_KAFKA_SERVERS}
     consumer:
       group-id: notification-group-prod
       auto-offset-reset: latest
@@ -32,9 +32,9 @@ spring:
 
 notification:
   email:
-    enabled: ${NOTIFICATION_EMAIL_ENABLED:true}
-    from-email: ${NOTIFICATION_FROM_EMAIL:noreply@shopmall.com}
-    from-name: "쇼핑몰 알림"
+    enabled: ${PROD_NOTIFICATION_EMAIL_ENABLED:true}
+    from-email: ${PROD_NOTIFICATION_FROM_EMAIL}
+    from-name: ${PROD_NOTIFICATION_FROM_NAME:쇼핑몰 알림}
     retry-count: 3
     retry-delay: 5000
   websocket:
@@ -43,16 +43,16 @@ notification:
     heartbeat-interval: 30000
   batch:
     enabled: true
-    reminder-job-cron: "0 */5 * * * *" # 5분마다
+    reminder-job-cron: "0 */5 * * * *"
     thread-pool-size: 5
     batch-size: 100
     max-retry-count: 3
 
 external-services:
-  user-service-detail-url: ${USER_SERVICE_URL:http://user-service/api/users}
-  broadcast-service-url: ${BROADCAST_SERVICE_URL:http://broadcast-service/api/broadcasts}
-  frontend-base-url: ${FRONTEND_BASE_URL:https://shopmall.com}
-  unsubscribe-url: ${UNSUBSCRIBE_URL:https://shopmall.com/unsubscribe}
+  user-service-detail-url: ${PROD_USER_SERVICE_DETAIL_URL:http://user-service/api/users}
+  broadcast-service-url: ${PROD_BROADCAST_SERVICE_URL:http://broadcast-service/api/broadcasts}
+  frontend-base-url: ${PROD_FRONTEND_BASE_URL}
+  unsubscribe-url: ${PROD_UNSUBSCRIBE_URL}
 
 logging:
   level:
