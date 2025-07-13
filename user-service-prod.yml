@@ -2,8 +2,9 @@ spring:
   application:
     name: user-service
 
-server:
-  port: 8103
+  # Bean 중복 허용 설정 추가 (중요!)
+  main:
+    allow-bean-definition-overriding: true
 
   # 운영환경 데이터베이스는 공통 설정에서 가져옴
   datasource:
@@ -57,6 +58,9 @@ server:
       properties:
         spring.json.trusted.packages: "org.kosa.userservice.dto"
 
+server:
+  port: 8103
+
 # MyBatis 설정
 mybatis:
   mapper-locations: classpath*:mapper/*.xml
@@ -79,3 +83,48 @@ logging:
     org.springframework.kafka: WARN
     org.apache.kafka: ERROR
     org.mybatis: WARN
+
+# Eureka 클라이언트 설정 추가
+eureka:
+  client:
+    service-url:
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-service:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+# Circuit Breaker 설정 추가 (중요!)
+resilience4j:
+  circuitbreaker:
+    instances:
+      auth-service:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+  retry:
+    instances:
+      auth-service:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+
+# 모니터링 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,circuitbreakers,circuitbreakerevents,retries
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
