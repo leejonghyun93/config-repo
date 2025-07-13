@@ -1,4 +1,7 @@
 spring:
+  application:
+    name: commerce-service # 추가!
+
   config:
     activate:
       on-profile: prod
@@ -47,11 +50,34 @@ spring:
       acks: all
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8090 # 수정! 8080 → 8090
 
 kafka:
   topic:
     user-withdrawal: ${PROD_KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic-prod}
+
+# Feign 설정 추가
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+  circuitbreaker:
+    enabled: true
+
+# Eureka 클라이언트 설정 추가
+eureka:
+  client:
+    service-url:
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-service:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 # 아임포트 운영환경 설정
 iamport:
@@ -119,6 +145,16 @@ user-service:
 product-service:
   url: ${PROD_PRODUCT_SERVICE_URL:http://product-service}
 user-service-detail-url: ${PROD_USER_SERVICE_DETAIL_URL:http://user-service/api/users}
+
+# Management 설정 추가
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,cache
+  endpoint:
+    health:
+      show-details: when_authorized
 
 logging:
   level:
