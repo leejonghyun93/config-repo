@@ -1,11 +1,11 @@
 server:
-  port: 8090
+  port: 8888 # Config Service 포트
 
 spring:
   datasource:
-    url: jdbc:mariadb://mariadb:3306/shoppingmall_db
-    username: shopmall_user
-    password: shopmall_pass123
+    url: jdbc:mariadb://mariadb:3306/live_commerce_db
+    username: kosa
+    password: ${PROD_DB_PASSWORD}
     driver-class-name: org.mariadb.jdbc.Driver
 
   jpa:
@@ -20,13 +20,18 @@ spring:
 
   kafka:
     bootstrap-servers: kafka:9092
-    consumer:
-      group-id: commerce-service-group-prod
 
+# Eureka 클라이언트 설정 추가
 eureka:
   client:
     service-url:
-      defaultZone: http://eureka-service:8761/eureka
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-service:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 # 결제 설정
 payment:
