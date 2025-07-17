@@ -1,0 +1,145 @@
+spring:
+  application:
+    name: live-streaming-service
+
+  # 데이터베이스 설정 추가
+  datasource:
+    url: ${PROD_DB_URL}
+    username: ${PROD_DB_USERNAME}
+    password: ${PROD_DB_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.MariaDBDialect
+
+  redis:
+    host: ${PROD_REDIS_HOST}
+    port: ${PROD_REDIS_PORT:6379}
+    password: ${PROD_REDIS_PASSWORD}
+    timeout: 3000ms
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${PROD_MAIL_USERNAME}
+    password: ${PROD_MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          timeout: 5000
+
+  kafka:
+    bootstrap-servers: ${PROD_KAFKA_SERVERS}
+    consumer:
+      group-id: notification-group-prod
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      retries: 3
+      acks: all
+
+server:
+  port: 8096
+
+notification:
+  email:
+    enabled: ${PROD_NOTIFICATION_EMAIL_ENABLED:true}
+    from-email: ${PROD_NOTIFICATION_FROM_EMAIL}
+    from-name: ${PROD_NOTIFICATION_FROM_NAME:쇼핑몰 알림}
+    retry-count: 3
+    retry-delay: 5000
+  websocket:
+    enabled: true
+    max-connections: 1000
+    heartbeat-interval: 30000
+  batch:
+    enabled: true
+    reminder-job-cron: "0 */5 * * * *"
+    thread-pool-size: 5
+    batch-size: 100
+    max-retry-count: 3
+
+external-services:
+  user-service-detail-url: ${PROD_USER_SERVICE_DETAIL_URL:http://user-service/api/users}
+  broadcast-service-url: ${PROD_BROADCAST_SERVICE_URL:http://broadcast-service/api/broadcasts}
+  frontend-base-url: ${PROD_FRONTEND_BASE_URL}
+  unsubscribe-url: ${PROD_UNSUBSCRIBE_URL}
+
+logging:
+  level:
+    org.kosa.livestreamingservice: INFO
+    org.springframework.mail: INFO
+    org.springframework.kafka: WARN
+
+# MyBatis 설정 추가
+mybatis:
+  mapper-locations: classpath:mappers/*.xml
+  type-aliases-package: org.kosa.livestreamingservice.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        minimumNumberOfCalls: 5
+
+  retry:
+    instances:
+      user-service:
+        maxAttempts: 3
+        waitDuration: 1s
+
+# Eureka 클라이언트 설정 추가
+eureka:
+  client:
+    service-url:
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-service:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+# Management 설정 추가
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
