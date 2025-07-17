@@ -128,3 +128,18 @@ management:
   health:
     circuitbreakers:
       enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: method
+    display-request-duration: true
+    show-extensions: true
+    show-common-extensions: true
+  packages-to-scan: org.kosa.userservice.userController
+  paths-to-match: /api/**
