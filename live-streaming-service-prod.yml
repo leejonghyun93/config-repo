@@ -62,6 +62,32 @@ spring:
 server:
   port: 8096
 
+# 🔥 Feign Client 설정 추가 (핵심!)
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 10000
+        readTimeout: 30000
+        loggerLevel: basic
+      user-service:
+        connectTimeout: 10000
+        readTimeout: 30000
+        loggerLevel: basic
+      broadcast-service:
+        connectTimeout: 10000
+        readTimeout: 30000
+        loggerLevel: basic
+  circuitbreaker:
+    enabled: true
+    alphanumeric-ids:
+      enabled: true
+  compression:
+    request:
+      enabled: true
+    response:
+      enabled: true
+
 notification:
   email:
     enabled: ${PROD_NOTIFICATION_EMAIL_ENABLED:true}
@@ -91,6 +117,9 @@ logging:
     org.kosa.livestreamingservice: INFO
     org.springframework.mail: INFO
     org.springframework.kafka: WARN
+    # 🔥 Feign Client 로깅 추가
+    org.springframework.cloud.openfeign: DEBUG
+    feign: DEBUG
 
 # MyBatis 설정 추가
 mybatis:
@@ -99,20 +128,58 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+# 🔥 Resilience4j 설정 강화
 resilience4j:
   circuitbreaker:
-    instances:
-      user-service:
+    configs:
+      default:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 30s
         minimumNumberOfCalls: 5
-
-  retry:
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
     instances:
       user-service:
+        baseConfig: default
+        slidingWindowSize: 10
+        failureRateThreshold: 60
+        waitDurationInOpenState: 30s
+        minimumNumberOfCalls: 3
+      broadcast-service:
+        baseConfig: default
+        slidingWindowSize: 10
+        failureRateThreshold: 60
+        waitDurationInOpenState: 30s
+        minimumNumberOfCalls: 3
+
+  retry:
+    configs:
+      default:
         maxAttempts: 3
         waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+    instances:
+      user-service:
+        baseConfig: default
+        maxAttempts: 3
+        waitDuration: 1s
+      broadcast-service:
+        baseConfig: default
+        maxAttempts: 3
+        waitDuration: 1s
+
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 30s
+        cancelRunningFuture: true
+    instances:
+      user-service:
+        baseConfig: default
+      broadcast-service:
+        baseConfig: default
 
 # Eureka 클라이언트 설정 추가
 eureka:
@@ -131,10 +198,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retries
   endpoint:
     health:
       show-details: when_authorized
+  health:
+    circuitbreakers:
+      enabled: true
 
 springdoc:
   api-docs:
