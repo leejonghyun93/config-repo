@@ -1,9 +1,9 @@
-pring:
+spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${DEV_MAIL_USERNAME}
-    password: ${DEV_MAIL_PASSWORD}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -13,18 +13,25 @@ pring:
             required: true
 
   kafka:
-    bootstrap-servers: ${DEV_KAFKA_SERVERS:localhost:9092}
+    bootstrap-servers: localhost:9092
     consumer:
-      group-id: notification-group-local
+      group-id: live-streaming-group
       auto-offset-reset: latest
+      enable-auto-commit: true
+      auto-commit-interval: 1000
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
+        spring.json.trusted.packages: "org.kosa.livestreamingservice.dto.alarm"
+        spring.json.value.default.type: org.kosa.livestreamingservice.dto.alarm.NotificationMessageDto
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      retries: 0
+      acks: 1
+      retries: 3
+      batch-size: 16384
+      linger-ms: 10
+      buffer-memory: 33554432
 
 notification:
   email:
@@ -50,3 +57,41 @@ logging:
     org.kosa.notificationservice: DEBUG
     org.springframework.mail: DEBUG
     org.springframework.kafka: WARN
+
+user-service:
+  url: http://localhost:8103
+
+streaming:
+  nginx:
+    host: localhost # 실제 Docker 서버 IP로 변경 (예: 192.168.1.100)
+    hls-port: 8080 # Nginx HLS 포트
+    rtmp-port: 1935
+
+# MyBatis 설정 추가
+mybatis:
+  mapper-locations: classpath:mappers/*.xml
+  type-aliases-package: org.kosa.livestreamingservice.domain
+  configuration:
+    map-underscore-to-camel-case: true
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        minimumNumberOfCalls: 5
+
+  retry:
+    instances:
+      user-service:
+        maxAttempts: 3
+        waitDuration: 1s
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
