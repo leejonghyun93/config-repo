@@ -1,64 +1,1930 @@
+spring:
+  application:
+    name: apigateway-service
+  rabbitmq:
+    host: ${PROD_RABBITMQ_HOST:localhost}
+    port: ${PROD_RABBITMQ_PORT:5672}
+    username: ${PROD_RABBITMQ_USERNAME:guest}
+    password: ${PROD_RABBITMQ_PASSWORD:guest}
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: true
+    gateway:
+      globalcors:
+        cors-configurations:
+          "[/**]":
+            allowedOriginPatterns:
+              - "${FRONTEND_URL:https://shopmall.com}"
+              - "${ADMIN_URL:https://admin.shopmall.com}"
+              - "https://*.shopmall.com" # 서브도메인 허용
+              - "https://shopmall.com"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - HEAD
+              - PATCH
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      default-filters:
+        - name: DedupeResponseHeader
+          args:
+            name: Access-Control-Allow-Origin Access-Control-Allow-Credentials
+            strategy: RETAIN_UNIQUE
+        - name: LoggingFilter
+          args:
+            baseMessage: "API Gateway"
+            preLogger: true
+            postLogger: true
+        # 전역 서킷브레이커 필터 추가
+        - name: CircuitBreaker
+          args:
+            name: globalCircuitBreaker
+            fallbackUri: forward:/fallback
+
+      routes:
+        # ===========================================
+        # WebSocket 연결 (서킷브레이커 제외 - 실시간 통신)
+        # ===========================================
+        - id: websocket-chat-direct
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/ws-chat/**
+          filters:
+            - StripPrefix=0
+
+        - id: websocket-general
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/ws/**
+          filters:
+            - StripPrefix=0
+
+        - id: chat-websocket
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/ws-chat/**
+
+        # ===========================================
+        # COMMERCE SERVICE (중요도별 서킷브레이커 설정)
+        # ===========================================
+
+        # 결제 API - 가장 중요한 서비스 (엄격한 서킷브레이커)
+        - id: payment-orders-checkout
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/orders/checkout
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        - id: payment-verify
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/verify
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        - id: payment-prepare
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/prepare
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        - id: payment-cancel-by-impuid
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/{impUid}/cancel
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        - id: payment-cancel
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/cancel
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        - id: payment-webhook
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/webhook
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        - id: payment-service-integrated
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/payments
+
+        # 주문 API - 중요한 비즈니스 로직
+        - id: order-checkout-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/orders/checkout
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/orders
+
+        - id: order-count-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/orders/count
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/orders
+
+        - id: order-list-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/orders/list
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/orders
+
+        - id: order-cancel-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/orders/{orderId}/cancel
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/orders
+
+        - id: order-detail-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/orders/{orderId}
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/orders
+
+        # 장바구니 API - 높은 트래픽 예상
+        - id: cart-count-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart/count
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        - id: cart-remove-purchased-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart/remove-purchased-items
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        - id: cart-update-item-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart/items
+            - Method=PUT
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        - id: cart-remove-items-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart/items
+            - Method=DELETE
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        - id: cart-remove-item-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart/items/{cartItemId}
+            - Method=DELETE
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        - id: cart-add-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        - id: cart-get-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cart
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cartServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cart
+
+        # 상품 API - 읽기 전용, 높은 트래픽 (관대한 설정)
+        - id: product-filter-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/filter
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-stats-count-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/stats/count
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-stats-count-all-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/stats/count-all
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-debug-status-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/debug/status
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-recommended-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/recommended
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-guest-cart-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/guest-cart-details
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-test-simple-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/test-simple
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-host-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/host/{hostId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-category-with-images-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/category/{categoryId}/with-images
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-category-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/category/{categoryId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-related-with-images-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/{productId}/related/with-images
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-related-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/{productId}/related
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-with-images-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/{productId}/with-images
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-detail-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/{productId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-list-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        - id: product-management-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/products/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/products
+
+        # 카테고리 API
+        - id: category-main-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/main
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        - id: category-hierarchy-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/hierarchy
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        - id: category-sub-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/{categoryId}/sub
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        - id: category-children-ids-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/{categoryId}/children-ids
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        - id: category-exists-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/{categoryId}/exists
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        - id: category-detail-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/{categoryId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        - id: category-management-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/categories/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: categoryServiceCircuitBreaker
+                fallbackUri: forward:/fallback/categories
+
+        # 이미지 API
+        - id: image-static-files
+          uri: lb://commerce-service
+          predicates:
+            - Path=/images/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-products-files
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/{fileName}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-legacy-files
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/../../images/{fileName}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-thumbnail-files
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/{fileName}/thumb
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-product-images-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/{productId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-main-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/{productId}/main
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-exists-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/{productId}/exists
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-main-exists-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/{productId}/main/exists
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-main-bulk-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/main
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-all-bulk-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/products/all
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-by-id-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/{productId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-main-by-id-public
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/{productId}/main
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-upload-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-delete-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/{imageId}
+            - Method=DELETE
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        # 찜하기 API
+        - id: wishlist-check-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/wishlist/check/{productId}
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: wishlistServiceCircuitBreaker
+                fallbackUri: forward:/fallback/wishlist
+
+        - id: wishlist-count-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/wishlist/count
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: wishlistServiceCircuitBreaker
+                fallbackUri: forward:/fallback/wishlist
+
+        - id: wishlist-clear-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/wishlist/clear
+            - Method=DELETE
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: wishlistServiceCircuitBreaker
+                fallbackUri: forward:/fallback/wishlist
+
+        - id: wishlist-remove-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/wishlist/{productId}
+            - Method=DELETE
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: wishlistServiceCircuitBreaker
+                fallbackUri: forward:/fallback/wishlist
+
+        - id: wishlist-add-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/wishlist
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: wishlistServiceCircuitBreaker
+                fallbackUri: forward:/fallback/wishlist
+
+        - id: wishlist-list-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/wishlist
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: wishlistServiceCircuitBreaker
+                fallbackUri: forward:/fallback/wishlist
+
+        # 캐시 관리 API
+        - id: cache-management-protected
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/cache/**
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: cacheServiceCircuitBreaker
+                fallbackUri: forward:/fallback/cache
+
+        # ===========================================
+        # USER SERVICE 라우팅
+        # ===========================================
+
+        # Q&A SERVICE
+        - id: qna-health-check
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/health
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-product-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/product/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-list-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/list
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-debug-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/debug/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-test-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/test
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-my-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/my
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-detail-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        - id: qna-service-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/qna,/api/qna/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: qnaServiceCircuitBreaker
+                fallbackUri: forward:/fallback/qna
+
+        # BOARD SERVICE
+        - id: board-health-check
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/health
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        - id: board-product-reviews-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/product/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        - id: board-list-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/list
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        - id: board-debug-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/debug/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        - id: board-test-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/test
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        - id: board-reviews-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/reviews/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        - id: board-service-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/board/**
+            - Method=POST,PUT,DELETE,PATCH
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: boardServiceCircuitBreaker
+                fallbackUri: forward:/fallback/board
+
+        # USER SERVICE
+        - id: user-withdrawal-health-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/withdrawal/health
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-withdrawal-process-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/withdrawal/process
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-withdraw-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/withdraw
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-findId-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/findId
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-register-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/register
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-checkid-public
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/checkUserId
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-profile-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/profile
+            - Method=GET,PUT
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-detail-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/{userId}
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-verify-password-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/verify-password
+            - Method=POST
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-email-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/{userId}/email
+            - Method=GET
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        - id: user-service-protected
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+            - Method=DELETE,PATCH,PUT
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: userServiceCircuitBreaker
+                fallbackUri: forward:/fallback/users
+
+        # ===========================================
+        # AUTH SERVICE 라우팅 (중요한 인증 서비스)
+        # ===========================================
+
+        - id: auth-social-callback
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/callback
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-social-login-api
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/social/login
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-social-config
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/social/config
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-social-all
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/social/**
+            - Method=GET,POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-login-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/login
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-validate-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/validate
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-refresh-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/refresh
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-logout-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/logout
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-findPassword-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/findPassword
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-verifyResetCode-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/verifyResetCode
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-resetPassword-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/resetPassword
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-findPassword-test-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/findPassword/test
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        - id: auth-service-fallback
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+
+        # ===========================================
+        # LIVE STREAMING SERVICE 라우팅
+        # ===========================================
+
+        # 채팅 API
+        - id: chat-test-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/test
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        - id: chat-health-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/health
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        - id: chat-history-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/history/{broadcastId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        - id: chat-service-all
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/**
+            - Method=GET,POST,PUT,DELETE
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        - id: chat-service-chat
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/sendMessage
+            - Method=GET,POST,PUT,DELETE
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        # 방송 API
+        - id: broadcast-viewer-products-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}/products
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewer-view-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}/view
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewer-like-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}/like
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewer-status-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}/status
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewer-chat-get-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}/chat
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewer-chat-post-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}/chat
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewer-detail-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcast/{broadcastId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-health-check
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/health
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-search-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/search
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-recommended-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/recommended
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-stats-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/stats
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-schedule-alarm-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/schedule/alarm
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-schedule-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/schedule
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-live-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/live
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-category-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/category/{categoryId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-broadcaster-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/broadcaster/{broadcasterId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-viewers-update-protected
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/{broadcastId}/viewers
+            - Method=PATCH
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-likes-update-protected
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/{broadcastId}/likes
+            - Method=PATCH
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-detail-public
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/{broadcastId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        - id: broadcast-management-protected
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/**
+            - Method=POST,PUT,DELETE
+          filters:
+            - name: JwtAuthorization
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        # 스트리밍 API
+        - id: live-streaming-service-fallback
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/streaming/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: streamingServiceCircuitBreaker
+                fallbackUri: forward:/fallback/streaming
+
+        # ===========================================
+        # NOTIFICATION SERVICE 라우팅
+        # ===========================================
+
+        - id: notification-service-public
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notificationServiceCircuitBreaker
+                fallbackUri: forward:/fallback/notifications
+
+        - id: chat-participants-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/participants/{broadcastId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        # 채팅 수동 연결 해제 API
+        - id: chat-disconnect-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/disconnect/{broadcastId}
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatServiceCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        # 채팅 금지 API (prod 추가)
+        - id: chat-ban-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/ban
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatBanCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        - id: chat-ban-status-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/ban-status/{broadcastId}/{userId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatStatusCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        # 방송 상태 조회 API
+        - id: broadcast-status-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/broadcasts/{broadcastId}/status
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: broadcastServiceCircuitBreaker
+                fallbackUri: forward:/fallback/broadcast
+
+        # 업로드 이미지 서빙
+        - id: image-upload-product-main
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/upload/product/main/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-upload-general
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/upload/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: static-uploads
+          uri: lb://commerce-service
+          predicates:
+            - Path=/uploads/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: static-upload
+          uri: lb://commerce-service
+          predicates:
+            - Path=/upload/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        # ===========================================
+        # SWAGGER 라우팅 (운영환경에서는 보안 고려하여 선택적 활성화)
+        # ===========================================
+
+        # User Service Swagger (운영환경에서는 내부 접근만 허용)
+        - id: user-service-swagger-ui
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/swagger-ui/**
+          filters:
+            - StripPrefix=1
+
+        - id: user-service-api-docs
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        # 직접 접근용 (운영환경에서는 비활성화 권장)
+        - id: user-service-swagger-direct
+          uri: lb://user-service
+          predicates:
+            - Path=/swagger-ui/**
+          filters:
+            - StripPrefix=0
+
+        # Live Streaming Service Swagger
+        - id: live-streaming-swagger-ui
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/live-streaming/swagger-ui/**
+          filters:
+            - StripPrefix=1
+
+        - id: live-streaming-api-docs
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/live-streaming/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        # Auth Service Swagger
+        - id: auth-service-swagger-ui
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/swagger-ui/**
+          filters:
+            - StripPrefix=1
+
+# ===========================================
+# Resilience4j 서킷브레이커 설정 (운영환경 최적화)
+# ===========================================
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+        ignoreExceptions:
+          - java.lang.IllegalArgumentException
+          - org.springframework.web.client.HttpClientErrorException$BadRequest
+    instances:
+      # 결제 서비스 - 가장 엄격한 설정 (돈과 관련)
+      paymentServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 30
+        waitDurationInOpenState: 120s
+        permittedNumberOfCallsInHalfOpenState: 1
+
+      # 주문 서비스 - 엄격한 설정 (비즈니스 중요)
+      orderServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 15
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 40
+        waitDurationInOpenState: 60s
+        permittedNumberOfCallsInHalfOpenState: 2
+
+      # 인증 서비스 - 중요한 설정 (보안 중요)
+      authServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 40
+        waitDurationInOpenState: 45s
+        permittedNumberOfCallsInHalfOpenState: 2
+
+      # 장바구니 서비스 - 중간 설정 (높은 트래픽)
+      cartServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+
+      # 상품 서비스 - 관대한 설정 (읽기 위주, 높은 트래픽)
+      productServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 30
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 60
+        waitDurationInOpenState: 20s
+        permittedNumberOfCallsInHalfOpenState: 5
+
+      # 사용자 서비스 - 기본 설정
+      userServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+
+      # 방송 서비스 - 기본 설정
+      broadcastServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 25
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 55
+        waitDurationInOpenState: 25s
+
+      # 채팅 서비스 - 실시간이므로 빠른 복구
+      chatServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 15
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+
+      # 누락되었던 Circuit Breaker 추가
+      chatBanCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 50
+        waitDurationInOpenState: 20s
+
+      chatStatusCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 15
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 15s
+
+      # 기타 서비스들 - 기본 설정
+      categoryServiceCircuitBreaker:
+        baseConfig: default
+      imageServiceCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 25
+        failureRateThreshold: 60
+        waitDurationInOpenState: 20s
+      wishlistServiceCircuitBreaker:
+        baseConfig: default
+      qnaServiceCircuitBreaker:
+        baseConfig: default
+      boardServiceCircuitBreaker:
+        baseConfig: default
+      streamingServiceCircuitBreaker:
+        baseConfig: default
+      notificationServiceCircuitBreaker:
+        baseConfig: default
+      cacheServiceCircuitBreaker:
+        baseConfig: default
+      globalCircuitBreaker:
+        baseConfig: default
+
+  # 타임아웃 설정 (운영환경 최적화)
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
+    instances:
+      paymentServiceCircuitBreaker:
+        timeoutDuration: 10s
+      orderServiceCircuitBreaker:
+        timeoutDuration: 8s
+      authServiceCircuitBreaker:
+        timeoutDuration: 6s
+      cartServiceCircuitBreaker:
+        timeoutDuration: 5s
+      productServiceCircuitBreaker:
+        timeoutDuration: 4s
+      userServiceCircuitBreaker:
+        timeoutDuration: 5s
+      broadcastServiceCircuitBreaker:
+        timeoutDuration: 6s
+      chatServiceCircuitBreaker:
+        timeoutDuration: 3s
+
+  # 재시도 설정 (선택사항)
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+    instances:
+      paymentServiceCircuitBreaker:
+        maxAttempts: 2
+        waitDuration: 2s
+      orderServiceCircuitBreaker:
+        maxAttempts: 2
+        waitDuration: 1s
+
+# Eureka 설정 (운영환경)
 eureka:
   client:
     service-url:
-      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-server:8761/eureka}
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-service:8761/eureka}
     register-with-eureka: true
     fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
-spring:
-  # 운영환경 데이터베이스 설정
-  datasource:
-    url: ${PROD_DB_URL}
-    username: ${PROD_DB_USERNAME}
-    password: ${PROD_DB_PASSWORD}
-    driver-class-name: org.mariadb.jdbc.Driver
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
+# 로깅 설정 (운영환경에서는 dev보다 제한적으로)
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO # DEBUG → INFO (운영환경)
+    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: INFO
+    org.kosa.apigatewayservice: INFO
+    io.github.resilience4j: WARN # DEBUG → WARN (운영환경)
+    org.springframework.cloud.circuitbreaker: WARN
 
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    database-platform: org.hibernate.dialect.MariaDBDialect
-    show-sql: false
-    properties:
-      hibernate:
-        format_sql: false
+# 서버 설정 (운영환경)
+server:
+  port: ${SERVER_PORT:8080}
 
-  # Redis 운영환경
-  redis:
-    host: ${PROD_REDIS_HOST}
-    port: ${PROD_REDIS_PORT:6379}
-    password: ${PROD_REDIS_PASSWORD}
-
-  # RabbitMQ 운영환경
-  rabbitmq:
-    host: ${PROD_RABBITMQ_HOST}
-    port: ${PROD_RABBITMQ_PORT:5672}
-    username: ${PROD_RABBITMQ_USERNAME}
-    password: ${PROD_RABBITMQ_PASSWORD}
-
-  # Kafka 운영환경
-  kafka:
-    bootstrap-servers: ${PROD_KAFKA_SERVERS}
-
-jwt:
-  secret-key: ${PROD_JWT_SECRET_KEY}
-
+# 관리 엔드포인트 (운영환경 - 보안 강화)
 management:
   endpoints:
     web:
       exposure:
-        include: ["health", "info"]
+        include: health,info,metrics,gateway,prometheus # prometheus 추가!
+      base-path: /actuator
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: when_authorized # 운영환경에서는 권한이 있을 때만
+    gateway:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
   security:
-    enabled: true
+    enabled: true # 운영환경에서는 보안 활성화
 
-logging:
-  level:
-    org.kosa: INFO
-    org.springframework.security: WARN
-    root: INFO
+# JWT 설정 (운영환경용)
+jwt:
+  secret: ${JWT_SECRET:rrYd2zPDUkx7BUhgDsOTxHCbsBkeTgE/uoARWYSqBjU=}
+  expiration: ${JWT_EXPIRATION:86400000}
