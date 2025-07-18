@@ -30,10 +30,55 @@ spring:
   cloud:
     discovery:
       enabled: true
-
+server:
+  port: 8082
 user-service:
   url: ${PROD_USER_SERVICE_URL:http://user-service}
 
 logging:
   level:
     org.kosa.authservice: INFO
+
+# JWT 설정 (운영환경)
+jwt:
+  secret: ${PROD_JWT_SECRET_KEY:rrYd2zPDUkx7BUhgDsOTxHCbsBkeTgE/uoARWYSqBjU=}
+  expiration: 86400000
+
+# 소셜 로그인 설정 추가
+social:
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID}
+    client-secret: ${KAKAO_CLIENT_SECRET}
+    redirect-uri: ${KAKAO_REDIRECT_URI:https://yourdomain.com/auth/callback}
+
+  naver:
+    client-id: ${NAVER_CLIENT_ID}
+    client-secret: ${NAVER_CLIENT_SECRET}
+    redirect-uri: ${NAVER_REDIRECT_URI:https://yourdomain.com/auth/callback}
+
+# 프론트엔드 URL
+frontend:
+  url: ${FRONTEND_URL:https://yourdomain.com}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${PROD_EUREKA_SERVER_URL:http://eureka-service:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,circuitbreakers,circuitbreakerevents,retries,timelimiters,info,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
