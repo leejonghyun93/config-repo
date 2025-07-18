@@ -62,11 +62,11 @@ spring:
 server:
   port: 8096
 
-# 🔥 User Service 설정 추가 (핵심 해결책!)
+#  User Service 설정 추가 (핵심 해결책!)
 user-service:
   url: ${PROD_USER_SERVICE_URL:http://user-service:8103}
 
-# 🔥 Feign Client 설정 추가 (핵심!)
+#  Feign Client 설정 추가 (핵심!)
 feign:
   client:
     config:
@@ -122,7 +122,7 @@ logging:
     org.kosa.livestreamingservice: INFO
     org.springframework.mail: INFO
     org.springframework.kafka: WARN
-    # 🔥 Feign Client 로깅 추가
+    #  Feign Client 로깅 추가
     org.springframework.cloud.openfeign: DEBUG
     feign: DEBUG
 
@@ -133,7 +133,7 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
-# 🔥 Resilience4j 설정 강화
+#  Resilience4j 설정 강화
 resilience4j:
   circuitbreaker:
     configs:
@@ -203,12 +203,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retries
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retries,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
   endpoint:
-    health:
-      show-details: when_authorized
-  health:
-    circuitbreakers:
+    prometheus:
       enabled: true
 
 springdoc:
