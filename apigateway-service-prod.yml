@@ -1529,27 +1529,6 @@ spring:
               args:
                 name: broadcastServiceCircuitBreaker
                 fallbackUri: forward:/fallback/broadcast
-        - id: chat-ban-api
-          uri: lb://live-streaming-service
-          predicates:
-            - Path=/api/chat/ban
-            - Method=POST
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: chatBanCircuitBreaker
-                fallbackUri: forward:/fallback/chat
-
-        - id: chat-ban-status-api
-          uri: lb://live-streaming-service
-          predicates:
-            - Path=/api/chat/ban-status/{broadcastId}/{userId}
-            - Method=GET
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: chatStatusCircuitBreaker
-                fallbackUri: forward:/fallback/chat
 
         # 스트리밍 API
         - id: live-streaming-service-fallback
@@ -1587,7 +1566,7 @@ spring:
                 name: chatServiceCircuitBreaker
                 fallbackUri: forward:/fallback/chat
 
-        # 채팅 수동 연결 해제 API (새로 추가)
+        # 채팅 수동 연결 해제 API
         - id: chat-disconnect-api
           uri: lb://live-streaming-service
           predicates:
@@ -1599,7 +1578,30 @@ spring:
                 name: chatServiceCircuitBreaker
                 fallbackUri: forward:/fallback/chat
 
-        # 방송 상태 조회 API (경로 수정 필요)
+        # 채팅 금지 API (prod 추가)
+        - id: chat-ban-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/ban
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatBanCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        - id: chat-ban-status-api
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/api/chat/ban-status/{broadcastId}/{userId}
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatStatusCircuitBreaker
+                fallbackUri: forward:/fallback/chat
+
+        # 방송 상태 조회 API
         - id: broadcast-status-api
           uri: lb://live-streaming-service
           predicates:
@@ -1610,6 +1612,101 @@ spring:
               args:
                 name: broadcastServiceCircuitBreaker
                 fallbackUri: forward:/fallback/broadcast
+
+        # 업로드 이미지 서빙
+        - id: image-upload-product-main
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/upload/product/main/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: image-upload-general
+          uri: lb://commerce-service
+          predicates:
+            - Path=/api/images/upload/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: static-uploads
+          uri: lb://commerce-service
+          predicates:
+            - Path=/uploads/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        - id: static-upload
+          uri: lb://commerce-service
+          predicates:
+            - Path=/upload/**
+            - Method=GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: imageServiceCircuitBreaker
+                fallbackUri: forward:/fallback/images
+
+        # ===========================================
+        # SWAGGER 라우팅 (운영환경에서는 보안 고려하여 선택적 활성화)
+        # ===========================================
+
+        # User Service Swagger (운영환경에서는 내부 접근만 허용)
+        - id: user-service-swagger-ui
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/swagger-ui/**
+          filters:
+            - StripPrefix=1
+
+        - id: user-service-api-docs
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        # 직접 접근용 (운영환경에서는 비활성화 권장)
+        - id: user-service-swagger-direct
+          uri: lb://user-service
+          predicates:
+            - Path=/swagger-ui/**
+          filters:
+            - StripPrefix=0
+
+        # Live Streaming Service Swagger
+        - id: live-streaming-swagger-ui
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/live-streaming/swagger-ui/**
+          filters:
+            - StripPrefix=1
+
+        - id: live-streaming-api-docs
+          uri: lb://live-streaming-service
+          predicates:
+            - Path=/live-streaming/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        # Auth Service Swagger
+        - id: auth-service-swagger-ui
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/swagger-ui/**
+          filters:
+            - StripPrefix=1
 
 # ===========================================
 # Resilience4j 서킷브레이커 설정 (운영환경 최적화)
@@ -1703,6 +1800,21 @@ resilience4j:
         waitDurationInOpenState: 15s
         permittedNumberOfCallsInHalfOpenState: 3
 
+      # 누락되었던 Circuit Breaker 추가
+      chatBanCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 50
+        waitDurationInOpenState: 20s
+
+      chatStatusCircuitBreaker:
+        baseConfig: default
+        slidingWindowSize: 15
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 15s
+
       # 기타 서비스들 - 기본 설정
       categoryServiceCircuitBreaker:
         baseConfig: default
@@ -1775,34 +1887,42 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
-# 로깅 설정 (운영환경에서는 dev와 동일하게 유지 - 디버깅 목적)
+# 로깅 설정 (운영환경에서는 dev보다 제한적으로)
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: DEBUG
-    org.kosa.apigatewayservice: DEBUG
-    io.github.resilience4j: DEBUG
-    org.springframework.cloud.circuitbreaker: DEBUG
+    org.springframework.cloud.gateway: INFO # DEBUG → INFO (운영환경)
+    org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: INFO
+    org.kosa.apigatewayservice: INFO
+    io.github.resilience4j: WARN # DEBUG → WARN (운영환경)
+    org.springframework.cloud.circuitbreaker: WARN
 
 # 서버 설정 (운영환경)
 server:
   port: ${SERVER_PORT:8080}
-# 관리 엔드포인트 (운영환경)
+
+# 관리 엔드포인트 (운영환경 - 보안 강화)
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,gateway
+        include: health,info,metrics,gateway,prometheus # prometheus 추가!
+      base-path: /actuator
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: when_authorized # 운영환경에서는 권한이 있을 때만
     gateway:
+      enabled: true
+    prometheus:
       enabled: true
   metrics:
     export:
       prometheus:
         enabled: true
+  security:
+    enabled: true # 운영환경에서는 보안 활성화
 
 # JWT 설정 (운영환경용)
 jwt:
