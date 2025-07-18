@@ -1,20 +1,28 @@
+server:
+  port: 8761
+
 eureka:
   client:
-    register-with-eureka: true # 운영환경: 다중 노드 구성
-    fetch-registry: true
+    # 단일 Eureka 서버 설정 (클러스터 비활성화)
+    register-with-eureka: false
+    fetch-registry: false
     service-url:
-      defaultZone: ${EUREKA_CLUSTER_URLS:http://eureka-1:8761/eureka,http://eureka-2:8761/eureka}
-
+      # 단일 인스턴스로 변경 (eureka-1, eureka-2 제거)
+      defaultZone: http://eureka-service:8761/eureka/
   server:
-    enable-self-preservation: true # 운영환경: 네트워크 장애 대응
+    # 단일 모드로 변경 (클러스터 완전 비활성화)
+    enable-self-preservation: false
     eviction-interval-timer-in-ms: 60000
     response-cache-update-interval-ms: 30000
     renewal-percent-threshold: 0.85
-
+    # 클러스터 관련 설정 추가
+    peer-eureka-nodes-update-interval-ms: 60000
+    peer-node-read-timeout-ms: 5000
   instance:
-    hostname: ${EUREKA_HOSTNAME:eureka-server}
-    prefer-ip-address: ${PREFER_IP_ADDRESS:false}
-    instance-id: ${spring.application.name}:${server.port}
+    # 고정 호스트명 설정
+    hostname: eureka-service
+    prefer-ip-address: true
+    instance-id: eureka-service:8761
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
 
@@ -22,14 +30,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: ["health", "info", "prometheus"] # 운영환경: 최소 노출
+        include: ["health", "info", "prometheus"]
   endpoint:
     health:
       show-details: when-authorized
     prometheus:
       enabled: true
-  security:
-    enabled: ${MANAGEMENT_SECURITY_ENABLED:true}
 
 logging:
   level:
@@ -37,10 +43,7 @@ logging:
     com.netflix.eureka: WARN
     root: WARN
 
-# 보안 설정 (운영환경)
-security:
-  basic:
-    enabled: ${EUREKA_SECURITY_ENABLED:true}
-  user:
-    name: ${EUREKA_USERNAME:eureka}
-    password: ${EUREKA_PASSWORD}
+# 보안 설정은 단순화 (또는 제거)
+# security:
+#   basic:
+#     enabled: false
