@@ -33,6 +33,24 @@ spring:
     password: ${PROD_REDIS_PASSWORD:}
     timeout: 3000ms
 
+  # 🔥 Mail 설정 추가
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${PROD_MAIL_USERNAME}
+    password: ${PROD_MAIL_PASSWORD}
+    from: ${PROD_NOTIFICATION_FROM_EMAIL}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+            protocols: TLSv1.2
+
   # RabbitMQ 운영환경
   rabbitmq:
     host: ${PROD_RABBITMQ_HOST}
@@ -44,6 +62,25 @@ spring:
   kafka:
     bootstrap-servers: ${PROD_KAFKA_SERVERS}
 
+# 🔥 알림 설정 추가
+notification:
+  email:
+    enabled: ${PROD_NOTIFICATION_EMAIL_ENABLED:true}
+    from-email: ${PROD_NOTIFICATION_FROM_EMAIL}
+    from-name: ${PROD_NOTIFICATION_FROM_NAME:쇼핑몰 알림}
+    retry-count: 3
+    retry-delay: 5000
+  websocket:
+    enabled: true
+    max-connections: 1000
+    heartbeat-interval: 30000
+  batch:
+    enabled: true
+    reminder-job-cron: "0 */5 * * * *"
+    thread-pool-size: 5
+    batch-size: 100
+    max-retry-count: 3
+
 jwt:
   secret-key: ${PROD_JWT_SECRET_KEY}
 
@@ -51,16 +88,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: ["health", "info", "prometheus"] # prometheus 추가!
+        include: ["health", "info", "prometheus"]
   endpoint:
     health:
       show-details: when-authorized
     prometheus:
-      enabled: true # 추가!
+      enabled: true
   metrics:
     export:
       prometheus:
-        enabled: true # 추가!
+        enabled: true
   security:
     enabled: true
 
