@@ -26,10 +26,11 @@ spring:
         format_sql: false
         dialect: org.hibernate.dialect.MariaDBDialect
 
+  # Redis 설정 수정 - 환경변수 의존성 제거
   redis:
-    host: ${PROD_REDIS_HOST}
-    port: ${PROD_REDIS_PORT:6379}
-    password: ${PROD_REDIS_PASSWORD}
+    host: redis  # ${PROD_REDIS_HOST} 제거
+    port: 6379
+    password: ${PROD_REDIS_PASSWORD:}
     timeout: 3000ms
     lettuce:
       pool:
@@ -121,12 +122,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,circuitbreakers,circuitbreakerevents,retries
+        include: health,circuitbreakers,circuitbreakerevents,retries,info,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
   endpoint:
-    health:
-      show-details: always
-  health:
-    circuitbreakers:
+    prometheus:
       enabled: true
 
 springdoc:
