@@ -28,9 +28,10 @@ spring:
 
   # Redis 운영환경
   redis:
-    host: ${PROD_REDIS_HOST}
-    port: ${PROD_REDIS_PORT:6379}
-    password: ${PROD_REDIS_PASSWORD}
+    host: redis # 환경변수 대신 직접 지정
+    port: 6379
+    password: ${PROD_REDIS_PASSWORD:}
+    timeout: 3000ms
 
   # RabbitMQ 운영환경
   rabbitmq:
