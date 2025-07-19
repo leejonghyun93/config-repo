@@ -1,12 +1,20 @@
 spring:
   application:
-    name: user-service
+    name: live-streaming-service
 
-  # Bean 중복 허용 설정 추가 (중요!)
-  main:
-    allow-bean-definition-overriding: true
+  # Redis 설정 수정 (Docker 서비스명 직접 지정)
+  redis:
+    host: redis # localhost 대신 Docker 서비스명 사용
+    port: 6379
+    password: ${PROD_REDIS_PASSWORD:}
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
 
-  # 운영환경 데이터베이스는 공통 설정에서 가져옴
+  # 데이터베이스 설정
   datasource:
     url: ${PROD_DB_URL}
     username: ${PROD_DB_USERNAME}
@@ -26,65 +34,110 @@ spring:
         format_sql: false
         dialect: org.hibernate.dialect.MariaDBDialect
 
-  redis:
-    host: ${PROD_REDIS_HOST}
-    port: ${PROD_REDIS_PORT:6379}
-    password: ${PROD_REDIS_PASSWORD}
-    timeout: 3000ms
-    lettuce:
-      pool:
-        max-active: 20
-        max-idle: 10
-        min-idle: 2
-        max-wait: 1000ms
+  # 메일 설정 개선
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${PROD_MAIL_USERNAME}
+    password: ${PROD_MAIL_PASSWORD}
+    from: ${PROD_NOTIFICATION_FROM_EMAIL} # 추가
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+            protocols: TLSv1.2
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+        debug: true
 
   kafka:
-    bootstrap-servers: ${PROD_KAFKA_SERVERS}
+    bootstrap-servers: kafka:9093 # Docker 서비스명 사용
+    consumer:
+      group-id: notification-group-prod
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
       retries: 3
-      enable-idempotence: true
-      batch-size: 16384
-      linger-ms: 5
-    consumer:
-      group-id: user-service-group-prod
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      auto-offset-reset: earliest
-      session-timeout: 30000
-      heartbeat-interval: 10000
-      properties:
-        spring.json.trusted.packages: "org.kosa.userservice.dto"
+      acks: all
 
 server:
-  port: 8103
+  port: 8096
 
-# MyBatis 설정
-mybatis:
-  mapper-locations: classpath*:mapper/*.xml
-  type-aliases-package: org.kosa.userservice.dto.board
-  configuration:
-    map-underscore-to-camel-case: true
+# 알림 설정 개선 (GitHub Secrets 활용)
+notification:
+  email:
+    enabled: ${PROD_NOTIFICATION_EMAIL_ENABLED:true}
+    from-email: ${PROD_NOTIFICATION_FROM_EMAIL}
+    from-name: ${PROD_NOTIFICATION_FROM_NAME:쇼핑몰 알림}
+    retry-count: 3
+    retry-delay: 5000
+  websocket:
+    enabled: true
+    max-connections: 1000
+    heartbeat-interval: 30000
+  batch:
+    enabled: true
+    reminder-job-cron: "0 */5 * * * *"
+    thread-pool-size: 5
+    batch-size: 100
+    max-retry-count: 3
 
-# Kafka 토픽 설정
-kafka:
-  topic:
-    user-withdrawal: ${PROD_KAFKA_TOPIC_USER_WITHDRAWAL:user-withdrawal-topic-prod}
+# User Service 설정
+user-service:
+  url: ${PROD_USER_SERVICE_URL:http://user-service:8103}
 
-# Auth Service 설정
-auth-service:
-  url: ${PROD_AUTH_SERVICE_URL:http://auth-service}
+# Feign Client 설정
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 10000
+        readTimeout: 30000
+        loggerLevel: basic
+      user-service:
+        connectTimeout: 10000
+        readTimeout: 30000
+        loggerLevel: basic
+        url: ${PROD_USER_SERVICE_URL:http://user-service:8103}
+      broadcast-service:
+        connectTimeout: 10000
+        readTimeout: 30000
+        loggerLevel: basic
+  circuitbreaker:
+    enabled: true
+    alphanumeric-ids:
+      enabled: true
+
+external-services:
+  user-service-detail-url: ${PROD_USER_SERVICE_DETAIL_URL:http://user-service:8103/api/users}
+  user-service-url: ${PROD_USER_SERVICE_URL:http://user-service:8103}
+  broadcast-service-url: ${PROD_BROADCAST_SERVICE_URL:http://commerce-service:8090/api/broadcasts}
+  frontend-base-url: ${PROD_FRONTEND_URL:http://13.209.253.241}
+  unsubscribe-url: ${PROD_UNSUBSCRIBE_URL:http://13.209.253.241/unsubscribe}
 
 logging:
   level:
-    org.kosa.userservice: INFO
+    org.kosa.livestreamingservice: INFO
+    org.springframework.mail: DEBUG # 이메일 디버깅 활성화
     org.springframework.kafka: WARN
-    org.apache.kafka: ERROR
-    org.mybatis: WARN
+    org.springframework.cloud.openfeign: DEBUG
+    feign: DEBUG
+    org.springframework.data.redis: DEBUG # Redis 디버깅 추가
 
-# Eureka 클라이언트 설정 추가
+# Eureka 클라이언트 설정
 eureka:
   client:
     service-url:
@@ -96,32 +149,12 @@ eureka:
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
 
-# Circuit Breaker 설정 추가 (중요!)
-resilience4j:
-  circuitbreaker:
-    instances:
-      auth-service:
-        slidingWindowSize: 10
-        minimumNumberOfCalls: 5
-        failureRateThreshold: 50
-        waitDurationInOpenState: 30s
-        permittedNumberOfCallsInHalfOpenState: 3
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-
-  retry:
-    instances:
-      auth-service:
-        maxAttempts: 3
-        waitDuration: 1s
-        enableExponentialBackoff: true
-        exponentialBackoffMultiplier: 2
-
-# 모니터링 설정
+# Management 설정
 management:
   endpoints:
     web:
       exposure:
-        include: health,circuitbreakers,circuitbreakerevents,retries,info,prometheus
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retries,prometheus
   metrics:
     export:
       prometheus:
@@ -129,18 +162,3 @@ management:
   endpoint:
     prometheus:
       enabled: true
-
-springdoc:
-  api-docs:
-    path: /api-docs
-    enabled: true
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: true
-    tags-sorter: alpha
-    operations-sorter: method
-    display-request-duration: true
-    show-extensions: true
-    show-common-extensions: true
-  packages-to-scan: org.kosa.userservice.userController
-  paths-to-match: /api/**
